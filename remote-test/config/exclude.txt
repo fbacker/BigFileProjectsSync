@@ -1,5 +1,2 @@
 .DS_Store
 Thumbs.db
-.another
-.git
-asd
