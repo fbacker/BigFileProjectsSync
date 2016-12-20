@@ -7,8 +7,10 @@ dir_company="$HOME/MyCompany" #files stored locally
 file_auth="authenticate.txt" #username and password
 file_menu="menu.txt"
 file_exclude="exclude.txt"
-remote="$dir/remote-test" #remote base path
-
+#remote="$dir//Users/kidkic/Documents/REMOTE" #remote base path
+remote="$HOME/Documents/REMOTE" #remote base path
+remote_app="/Users/kidkic/Desktop/testscripts/BigFileProjectsSync/remote-test/syncapplication" #remote base path
+remote_check="/Volumes/gemensam\$/Marknad/"
 # --- SETUP PATHS ---
 rsync="/usr/bin/rsync"
 caffe="/usr/bin/caffeinate -s" # use to keep computer alive when working for a long time
@@ -32,37 +34,38 @@ c_red=`echo "\033[31m"`
 c_enter=`echo "\033[33m"`
 c_line=`echo -e "${c_menu}**************************************************${c_normal}"` #width 50
 
+
+debug_ignore_authenticate=true
+debug_ignore_remote_check=false
+debug_ignore_copy_files=false
+debug_ignore_copy_program=true
+
 # --- HELPERS ---
 function version_gt() {
 	#TODO sort -V does't work on OSX
 	test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" != "$1";
 }
 function command_exists () { type "$1" &> /dev/null ;}
-# Convert 8 bit r,g,b,a (0-255) to 16 bit r,g,b,a (0-65535)
-# to set terminal background.
+# Convert 8 bit r,g,b,a (0-255) to 16 bit r,g,b,a (0-65535) to set terminal background.
 # r, g, b, a values default to 255
 function set_bg () {
     r=${1:-255}
     g=${2:-255}
     b=${3:-255}
     a=${4:-255}
-
     r=$(($r * 256 + $r))
     g=$(($g * 256 + $g))
     b=$(($b * 256 + $b))
     a=$(($a * 256 + $a))
-
     osascript -e "tell application \"Terminal\" to set background color of window 1 to {$r, $g, $b, $a}"
 }
-# Convert 8 bit r,g,b,a (0-255) to 16 bit r,g,b,a (0-65535)
-# to set terminal background.
+# Convert 8 bit r,g,b,a (0-255) to 16 bit r,g,b,a (0-65535) to set terminal background.
 # r, g, b, a values default to 255
 function set_fg () {
     r=${1:-255}
     g=${2:-255}
     b=${3:-255}
     a=${4:-255}
-
     r=$(($r * 256 + $r))
     g=$(($g * 256 + $g))
     b=$(($b * 256 + $b))
@@ -84,6 +87,14 @@ function center {
 function print_input_ready
 {
 	echo -e "${c_enter}Please enter a operation number and enter. ${c_normal}"
+}
+function check_path
+{
+	if [ ! -d "$1" ]; then
+		echo -e $c_red"Path doesn't exists: $1"$c_normal
+		echo -e $c_number"Fix paths and rerun the application"$c_normal
+		exit
+	fi
 }
 function header() {
 	echo ''
@@ -110,7 +121,7 @@ function check_bash() {
 	#	echo "Your computer isn't supported. Please update the operating system."
 	#	exit
 	#fi
-	echo "TODO: check bash version, sort -V doesn't work in osx"
+	#echo "TODO: check bash version, sort -V doesn't work in osx"
 	# Check if osx system
 	case "$OSTYPE" in
 		darwin*)  #we are happy
@@ -132,40 +143,63 @@ function check_requirements() {
 
 
 function check_files() {
-	#check for authenticate file
-	if [ ! -f $file_auth ]; then
-    echo "File not found!"
-		#TODO Create file
-		echo "username="$'\n'"password=" >> $file_auth
+
+	if [ "$debug_ignore_authenticate" = false ]; then
+		#check for authenticate file
+		if [ ! -f $file_auth ]; then
+	    echo "File not found!"
+			#TODO Create file
+			echo "username="$'\n'"password=" >> $file_auth
+			echo -e $c_red"Authentication file $file_auth doesn't exist. It's now created. Please open it and enter username and password."$c_normal
+			exit
+		fi
+		#read authenticate file
+		declare -i c
+		c=0
+		while IFS= read -r line; do
+			IFS='=' read -ra obj <<< "$line"
+			if (($c == "0")); then
+				#username
+				if [ -z "${obj[1]}" ]; then
+					echo $c_red"You must enter username in $file_auth"$c_normal
+					echo $c_red"If you have issues authenticate, delete the file and run this script again."$c_normal
+					exit
+				fi
+				auth_user="${obj[1]}"
+			fi
+			if (($c == "1")); then
+				#password
+				if [ -z "${obj[1]}" ]; then
+					echo $c_red"You must enter password in $file_auth"$c_normal
+					echo $c_red"If you have issues authenticate, delete the file and run this script again."$c_normal
+					exit
+				fi
+				auth_pass="${obj[1]}"
+			fi
+			c=$c+1
+		done <$file_auth
+	fi
+
+	#check connection to remote location
+	if [ ! -d "$remote_check" ] && [ "$debug_ignore_remote_check" = false ]; then
+		echo -e $c_red"Couldn't access network disk. Please attach $remote_check and try again."$c_normal
 		exit
 	fi
-	#read authenticate file
-	declare -i c
-	c=0
-	while IFS= read -r line; do
-		IFS='=' read -ra obj <<< "$line"
-		if (($c == "0")); then
-			#username
-			if [ -z "${obj[1]}" ]; then
-				echo "You must enter username in $file_auth"
-				echo "If you have issues authenticate, delete the file and run this script again."
-				exit
-			fi
-			auth_user="${obj[1]}"
-		fi
-		if (($c == "1")); then
-			#password
-			if [ -z "${obj[1]}" ]; then
-				echo "You must enter password in $file_auth"
-				echo "If you have issues authenticate, delete the file and run this script again."
-				exit
-			fi
-			auth_pass="${obj[1]}"
-		fi
-		c=$c+1
-	done <$file_auth
+
 	#grab remote files so we have latest
-	rsync --update --archive "$remote/config/" "$dir"
+	if [ "$debug_ignore_copy_files" = false ]; then
+		rsync --update --archive "$remote_app/config/" "$dir"
+	fi
+
+	#Check for a newer version on server
+	if [ "$debug_ignore_copy_program" = false ]; then
+		if [[ "$remote_app/program/script.sh" -nt "$dir/script.sh" ]]; then
+			cp "$remote_app/program/script.sh" "$dir/script.sh"
+			echo -e $c_red"This program just got updated. Please run it again to use latest version."$c_normal
+			exit
+		fi
+	fi
+
 }
 
 
@@ -310,33 +344,31 @@ function project_menu
 			elif [ 1 -le "$index" ] && [ "$index" -le $(($len-1)) ]; then
 				case $index in
 					1) #get latest from remote
-						#TODO create folder if doesn't exist?
-		      	paths="\"$remote/${4}\"/ \"$dir_company/${3}\"";
-						#echo $exec
+						check_path "$remote/${4}"
+		      	paths="\"$remote/${4}/\" \"$dir_company/${3}/\"";
 						eval "mkdir -p \"$dir_company/${3}\""
-						execute_command "This will move new and changed files from server to your computer" "$call_move" "$paths" "$2" "$3" "$4"
-						#eval $exec
-						#print_input_ready
-						#read opt
+						execute_command "This will move new and changed files\n${c_menu}** ${c_normal}FROM server TO your computer" "$call_move" "$paths" "$2" "$3" "$4"
 						;;
 					2) #check changes from server
-						exec="$call_test \"$remote/${4}\"/ \"$dir_company/${3}\"";
-						#echo $exec
+						check_path "$remote/${4}"
+						paths="\"$remote/${4}/\" \"$dir_company/${3}/\"";
+						echo exec="$call_test $paths";
+						exec="$call_test $paths";
 						eval $exec
 						print_input_ready
 						read opt
 						;;
 					3) #send latest to remote
-						exec="\"$dir_company/${4}\"/ \"$remote/${3}\"";
-						#echo $exec
-						execute_command "This will move new and changed files from your computer to server" "$call_move" "$paths" "$2" "$3" "$4"
-						#eval $exec
-						#print_input_ready
-						#read opt
+						check_path "$dir_company/${3}"
+						check_path "$remote/${4}"
+						paths="\"$dir_company/${3}/\" \"$remote/${4}/\"";
+						execute_command "This will move new and changed files\n${c_menu}** ${c_normal}FROM your computer TO server" "$call_move" "$paths" "$2" "$3" "$4"
 						;;
 					4) #check changes from local
-						exec="$call_test \"$dir_company/${4}\"/ \"$remote/${3}\"";
-						#echo $exec
+						check_path "$dir_company/${3}"
+						check_path "$remote/${4}"
+						paths="\"$dir_company/${3}/\" \"$remote/${4}/\"";
+						exec="$call_test $paths";
 						eval $exec
 						print_input_ready
 						read opt
@@ -357,12 +389,12 @@ function project_menu
 #params input,exec,var1,var2,var3
 function execute_command() {
 	echo -e $c_line
-	echo $1
+	echo -e "${c_menu}**${c_normal} $1"
 	echo -e $c_line
 	echo -e "${c_menu}**${c_number} 1 or y or ENTER)${c_menu} Do it ${c_normal}"
 	echo -e "${c_menu}**${c_number} 2 or n)${c_menu} I regret my choice ${c_normal}"
 	echo -e "${c_menu}**------------------------------------------------${c_normal}"
-	echo -e "${c_menu}**${c_number} 6)${c_menu} Do it, also delete non-transfer files on target! ${c_normal}"
+	echo -e "${c_menu}**${c_number} 6 advanced)${c_menu} Do it, and clean!\n** ${c_red}Will delete non-existing files on target! ${c_normal}"
 	echo -e $c_line
 	read opt
 	while [ opt != '' ]; do

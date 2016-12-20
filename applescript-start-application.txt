@@ -1,0 +1,27 @@
+Create a applescript with the code. Export to an app.
+Place the *.app in same folder as script.sh
+
+Now when running (double click in finder) the script will start.
+It will grab menu, exclude file and create (if enabled) authenticate file in same directory.
+This will happen every time it's started.
+
+
+on run {input, parameters}
+
+	tell application "Finder" to set currentFolder to target of front Finder window as text
+	set theWin to currentFolder's POSIX path
+
+	tell application "Terminal"
+		if not (exists window 1) then reopen
+		activate
+		set the bounds of the front window to {50, 50, 900, 600}
+		set folder_path to quoted form of theWin
+		do script "cd " & folder_path & ";clear" in window 1
+		do script folder_path & "script.sh" in window 1
+		#st run_cmd to "/bin/bash " & folder_path & "/bash.sh"
+		#d script run_cmd
+		#		do shell script "bash app.sh"
+	end tell
+
+	return input
+end run
