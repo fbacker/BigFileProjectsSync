@@ -1,3 +1,4 @@
 Project Test A, project-a, Das Project
-Project Title 6, source2dir, destination2dir
+Project Title B, source2dir, destination2dir
 Project Title 7, source3dir, destination3dir
+BL16-350 Sommarbilder, BL16-350_Sommarbild_Sociala_Medier, _bingolotto/BL16-350_Sommarbild_Sociala_Medier

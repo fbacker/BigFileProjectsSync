@@ -37,7 +37,7 @@ c_line=`echo -e "${c_menu}**************************************************${c_
 
 debug_ignore_authenticate=true
 debug_ignore_remote_check=false
-debug_ignore_copy_files=false
+debug_ignore_copy_files=true
 debug_ignore_copy_program=true
 
 # --- HELPERS ---
